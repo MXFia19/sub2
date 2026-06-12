@@ -280,7 +280,9 @@ struct CustomTabBar: View {
             }
         }
         .padding(.top, 10)
-        .padding(.bottom, UIApplication.safeAreaBottom + 8) // safe area dynamique
+        .padding(.bottom, (UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first(where: { $0.isKeyWindow })?.safeAreaInsets.bottom ?? 34) + 8)
         .background(Color.tCard)
         .overlay(Divider().background(Color.tBorder), alignment: .top)
     }
