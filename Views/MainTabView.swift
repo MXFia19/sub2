@@ -29,6 +29,9 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Background qui couvre tout l'écran y compris les safe areas
+            Color.tDark.ignoresSafeArea()
+
             VStack(spacing: 0) {
                 HeaderView()
                     .zIndex(10)
@@ -50,7 +53,6 @@ struct MainTabView: View {
 
                 CustomTabBar(activeTab: $activeTab)
             }
-            .background(Color.tDark)
 
             // ── Mini bar (player réduit) ──────────────────────────────
             if playerMode != nil && !playerVisible && qualityLinks != nil {
@@ -67,7 +69,6 @@ struct MainTabView: View {
                     .transition(.opacity)
             }
         }
-        .ignoresSafeArea(edges: .bottom)
     }
 
     // MARK: – Player Overlay
@@ -161,10 +162,17 @@ struct MainTabView: View {
         }
     }
 
+    // Helper pour éviter l'expression trop complexe dans miniBar
+    private var miniBarPrefix: String {
+        guard let mode = playerMode else { return "▶️ " }
+        if case .live = mode { return "🔴 " }
+        return "▶️ "
+    }
+
     @ViewBuilder
     private var miniBar: some View {
         HStack(spacing: 12) {
-            Text("\(playerMode.map { if case .live = $0 { return "🔴 " } else { return "▶️ " } }() ?? "▶️ ")\(statusTitle)")
+            Text(miniBarPrefix + statusTitle)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
                 .lineLimit(1)
@@ -273,8 +281,10 @@ struct CustomTabBar: View {
             }
         }
         .padding(.top, 10)
-        .padding(.bottom, 28)
-        .background(Color.tCard)
+        .background(
+            Color.tCard
+                .ignoresSafeArea(edges: .bottom)  // s'étend derrière le home indicator
+        )
         .overlay(Divider().background(Color.tBorder), alignment: .top)
     }
 }

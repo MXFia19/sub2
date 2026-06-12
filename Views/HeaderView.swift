@@ -46,9 +46,11 @@ struct HeaderView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 54)
-        .padding(.bottom, 12)
-        .background(Color.tCard)
+        .padding(.vertical, 12)
+        .background(
+            Color.tCard
+                .ignoresSafeArea(edges: .top)  // s'étend derrière la status bar
+        )
         .overlay(Divider().background(Color.tBorder), alignment: .bottom)
     }
 }
