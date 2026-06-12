@@ -1,3 +1,4 @@
+```yaml
 name: Build and upload nightly
 
 on:
@@ -32,22 +33,21 @@ jobs:
           echo "date=$BUILD_DATE" >> $GITHUB_OUTPUT
           echo "download_url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
 
-      - name: Prepare Info.plist and App Icon
+      - name: Inject Version, App Icon and Fix Fullscreen
         run: |
-          echo "--- Sécurisation du Info.plist (Versions & Écran complet sans bandes noires) ---"
+          echo "--- Injection dynamique dans Info.plist ---"
           find . -name "Info.plist" -exec plutil -replace CFBundleIdentifier -string "com.mxfia19.TwitchUnblock" {} \;
           find . -name "Info.plist" -exec plutil -replace CFBundleShortVersionString -string "${{ steps.vars.outputs.version }}" {} \;
           find . -name "Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \;
           find . -name "Info.plist" -exec plutil -replace CFBundleIconName -string "AppIcon" {} \;
-          # La ligne ci-dessous CORRIGE le bug des bandes noires !
-          find . -name "Info.plist" -exec plutil -replace UILaunchStoryboardName -string "LaunchScreen" {} \;
           
-          echo "--- Paramétrage XcodeGen (pour lier l'icône) ---"
-          if [ -f "project.yml" ]; then
-            sed -i '' "s/PRODUCT_NAME: TwitchUnblock/PRODUCT_NAME: TwitchUnblock\n        MARKETING_VERSION: ${{ steps.vars.outputs.version }}\n        CURRENT_PROJECT_VERSION: ${{ github.run_number }}\n        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon/g" project.yml
-          fi
-
-          echo "--- Création de l'icône iOS ---"
+          echo "--- Correction FULL SCREEN (Adieu bandes noires) ---"
+          # On supprime l'ancienne méthode qui nécessitait un fichier Storyboard lié
+          find . -name "Info.plist" -exec plutil -remove UILaunchStoryboardName {} \; || true
+          # On injecte la méthode iOS moderne qui force instantanément le mode plein écran !
+          find . -name "Info.plist" -exec plutil -replace UILaunchScreen -xml "<dict/>" {} \;
+          
+          echo "--- Téléchargement de l'icône ---"
           mkdir -p Sources/Assets.xcassets/AppIcon.appiconset
           curl -sL https://raw.githubusercontent.com/MXFia19/TwitchUnblock/master/assets/icon.png -o Sources/Assets.xcassets/AppIcon.appiconset/icon.png
           cat <<EOF > Sources/Assets.xcassets/AppIcon.appiconset/Contents.json
@@ -66,11 +66,6 @@ jobs:
             }
           }
           EOF
-
-      - name: Generate Xcode Project
-        run: |
-          brew install xcodegen
-          xcodegen generate --spec project.yml
 
       - name: Make build script executable
         run: chmod +x ./buildipa.sh
@@ -119,3 +114,6 @@ jobs:
           git add apps.json
           git diff --cached --quiet || \
             (git commit -m "chore: bump version to ${{ steps.vars.outputs.version }} [skip ci]" && git push origin HEAD:master)
+
+
+```
