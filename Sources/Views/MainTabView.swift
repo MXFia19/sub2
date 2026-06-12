@@ -29,10 +29,13 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // 1. Fond noir profond qui prend TOUT l'écran
             Color.tDark.ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // 2. Padding ajouté en haut pour contourner l'encoche de l'iPhone (Dynamic Island)
                 HeaderView()
+                    .padding(.top, UIApplication.safeAreaTop) 
                     .zIndex(10)
 
                 Group {
@@ -51,7 +54,7 @@ struct MainTabView: View {
 
                 CustomTabBar(activeTab: $activeTab)
             }
-            .ignoresSafeArea() // le VStack part de y=0 ; Header et TabBar gèrent leur propre inset
+            .ignoresSafeArea()
 
             // ── Mini bar (player réduit) ──────────────────────────────
             if playerMode != nil && !playerVisible && qualityLinks != nil {
@@ -76,7 +79,7 @@ struct MainTabView: View {
         ZStack(alignment: .top) {
             Color.tDark.ignoresSafeArea()
             VStack(spacing: 0) {
-                // Header
+                // Header Player
                 HStack(spacing: 12) {
                     Button(store.t("reduce")) { withAnimation { playerVisible = false } }
                         .font(.system(size: 15, weight: .bold))
@@ -86,6 +89,7 @@ struct MainTabView: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.5) // Sécurité si le titre est long
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button {
@@ -100,7 +104,7 @@ struct MainTabView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 52)
+                .padding(.top, UIApplication.safeAreaTop + 10) // Marge propre pour l'encoche
                 .padding(.bottom, 12)
                 .background(Color.tCard)
                 .overlay(Divider().background(Color.tBorder), alignment: .bottom)
@@ -161,7 +165,6 @@ struct MainTabView: View {
         }
     }
 
-    // Helper pour éviter l'expression trop complexe dans miniBar
     private var miniBarPrefix: String {
         guard let mode = playerMode else { return "▶️ " }
         if case .live = mode { return "🔴 " }
@@ -262,6 +265,7 @@ struct CustomTabBar: View {
             ForEach(MainTabView.TabName.allCases, id: \.self) { tab in
                 let isActive = activeTab == tab
                 Button { activeTab = tab } label: {
+                    // 3. Cadre forcé pour chaque onglet afin d'éviter le débordement
                     VStack(spacing: 4) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 16)
@@ -280,9 +284,7 @@ struct CustomTabBar: View {
             }
         }
         .padding(.top, 10)
-        .padding(.bottom, (UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first(where: { $0.isKeyWindow })?.safeAreaInsets.bottom ?? 34) + 8)
+        .padding(.bottom, UIApplication.safeAreaBottom + 8) 
         .background(Color.tCard)
         .overlay(Divider().background(Color.tBorder), alignment: .top)
     }
