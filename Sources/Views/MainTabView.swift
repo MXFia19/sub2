@@ -161,10 +161,17 @@ struct MainTabView: View {
         }
     }
 
+    // Helper pour éviter l'expression trop complexe dans miniBar
+    private var miniBarPrefix: String {
+        guard let mode = playerMode else { return "▶️ " }
+        if case .live = mode { return "🔴 " }
+        return "▶️ "
+    }
+
     @ViewBuilder
     private var miniBar: some View {
         HStack(spacing: 12) {
-            Text("\(playerMode.map { if case .live = $0 { return "🔴 " } else { return "▶️ " } }() ?? "▶️ ")\(statusTitle)")
+            Text(miniBarPrefix + statusTitle)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white)
                 .lineLimit(1)
