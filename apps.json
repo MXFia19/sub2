@@ -1,11 +1,10 @@
 {
-  "name": "TwitchUnblock",
-  "identifier": "com.mxfia19.twitchunblock-source",
-  "subtitle": "Regarder Twitch sans sub",
-  "description": "Source AltStore pour TwitchUnblock — builds nightlys automatiques.",
+  "name": "TwitchUnblock Repo",
+  "subtitle": "La source officielle pour TwitchUnblock",
+  "description": "Bienvenue sur ma source Feather ! Retrouvez ici les builds nightlys automatiques de TwitchUnblock.",
   "iconURL": "https://raw.githubusercontent.com/MXFia19/TwitchUnblock/master/assets/icon.png",
   "website": "https://github.com/MXFia19/TwitchUnblock",
-  "tintColor": "9146ff",
+  "tintColor": "#9146ff",
   "featuredApps": [
     "com.mxfia19.TwitchUnblock"
   ],
@@ -17,21 +16,17 @@
       "subtitle": "Twitch VODs & Live sans abonnement",
       "localizedDescription": "Regardez vos VODs et streams Twitch sans subscription, avec sélecteur de qualité, PiP natif, historique, sync cloud et support VLC / Outplayer / Infuse.",
       "iconURL": "https://raw.githubusercontent.com/MXFia19/TwitchUnblock/master/assets/icon.png",
-      "tintColor": "9146ff",
-      "screenshotURLs": [],
-      "version": "1.0.31",
-      "versionDate": "2026-06-12",
-      "versionDescription": "Build automatique initial.",
-      "downloadURL": "https://github.com/MXFia19/TwitchUnblock/releases/download/nightly-31/TwitchUnblock.ipa",
-      "size": 314203,
+      "tintColor": "#9146ff",
+      "category": "entertainment",
+      "screenshots": [],
       "versions": [
         {
-          "version": "1.0.31",
+          "version": "1.0.0",
+          "buildVersion": "1",
           "date": "2026-06-12",
-          "localizedDescription": "Build automatique initial.",
-          "downloadURL": "https://github.com/MXFia19/TwitchUnblock/releases/download/nightly-31/TwitchUnblock.ipa",
-          "size": 314203,
-          "minOSVersion": "16.0"
+          "localizedDescription": "## Build automatique initial\n\n- Ajout du lecteur vidéo natif et PiP.\n- Ajout de l'onglet Historique.\n- Support des chaînes suivies et du Top Streams.",
+          "downloadURL": "https://github.com/MXFia19/TwitchUnblock/releases/download/nightly-1/TwitchUnblock.ipa",
+          "size": 0
         }
       ],
       "appPermissions": {
