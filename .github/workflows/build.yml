@@ -52,19 +52,18 @@ jobs:
             --title "Nightly Build ${{ steps.vars.outputs.version }}" \
             --notes "Build automatique de la branche \`master\` le ${{ steps.vars.outputs.date }}."
 
-      - name: Update apps.json (AltStore source)
+      - name: Update apps.json (Feather source)
         run: |
           IPA_SIZE=$(wc -c < build/TwitchUnblock.ipa | tr -d ' ')
           
+          # Adaptation au format Feather : on ne met plus les infos à la racine de "apps[0]" mais dans "versions[0]"
           jq --arg version "${{ steps.vars.outputs.version }}" \
+             --arg build "${{ github.run_number }}" \
              --arg date "${{ steps.vars.outputs.date }}" \
              --arg url "${{ steps.vars.outputs.download_url }}" \
              --argjson size "$IPA_SIZE" \
-            '.apps[0].version = $version |
-             .apps[0].versionDate = $date |
-             .apps[0].downloadURL = $url |
-             .apps[0].size = $size |
-             .apps[0].versions[0].version = $version |
+            '.apps[0].versions[0].version = $version |
+             .apps[0].versions[0].buildVersion = $build |
              .apps[0].versions[0].date = $date |
              .apps[0].versions[0].downloadURL = $url |
              .apps[0].versions[0].size = $size' apps.json > apps.json.tmp
@@ -76,4 +75,3 @@ jobs:
           git add apps.json
           git diff --cached --quiet || \
             (git commit -m "chore: bump version to ${{ steps.vars.outputs.version }} [skip ci]" && git push origin HEAD:master)
-
