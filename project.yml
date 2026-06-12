@@ -37,6 +37,5 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGN_ENTITLEMENTS: ""
         DEVELOPMENT_TEAM: ""
-        # ✨ LES DEUX LIGNES POUR FORCER LE VRAI PLEIN ÉCRAN :
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        UILaunchStoryboardName: ""
+        # La ligne magique qui lie ton nouveau storyboard :
+        UILaunchStoryboardName: "LaunchScreen"
