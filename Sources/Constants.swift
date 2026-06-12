@@ -4,7 +4,7 @@ import SwiftUI
 let kAPIURL          = "https://test2.kurzmathis4.workers.dev"
 let kHelixClientID   = "1e68ku2ehgzy5cy0di3xvfy82sxpf6"
 let kGQLClientID     = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-let kRedirectURI     = "https://mxfia19.github.io/Sub/auth.html"
+let kRedirectURI     = "https://mxfia19.github.io/TwitchUnblock/auth.html"
 let kDeepLinkScheme  = "twitchunblock://"
 
 // MARK: – Colors
