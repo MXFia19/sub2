@@ -19,24 +19,41 @@ struct DiscoveryView: View {
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                // VOD history row
-                VodHistoryRowView { item in
-                    onPlayVod(item.term, item.display, item.thumb, item.streamer)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
+        Group {
+            if store.twitchToken == nil {
+                // 1. VUE DÉCONNECTÉE : On utilise une VStack pour centrer le bouton
+                VStack(spacing: 0) {
+                    VodHistoryRowView { item in
+                        onPlayVod(item.term, item.display, item.thumb, item.streamer)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
 
-                if store.twitchToken == nil {
+                    Spacer() // Pousse l'encadré vers le centre
+
                     loginPrompt
-                } else {
-                    loggedInContent
+
+                    Spacer() // Maintient l'encadré au centre
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.tDark)
+            } else {
+                // 2. VUE CONNECTÉE : On garde la ScrollView et le pull-to-refresh
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        VodHistoryRowView { item in
+                            onPlayVod(item.term, item.display, item.thumb, item.streamer)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+
+                        loggedInContent
+                    }
+                }
+                .background(Color.tDark)
+                .refreshable { await refresh() }
             }
         }
-        .background(Color.tDark)
-        .refreshable { await refresh() }
         .onAppear {
             if store.twitchToken != nil && followedStreams.isEmpty {
                 Task { await loadAll() }
@@ -69,7 +86,7 @@ struct DiscoveryView: View {
         .background(Color.tPrimary.opacity(0.1))
         .cornerRadius(16)
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.tPrimary.opacity(0.27), lineWidth: 1))
-        .padding(.horizontal, 16).padding(.top, 12)
+        .padding(.horizontal, 16)
     }
 
     // MARK: – Logged-in state
@@ -150,18 +167,32 @@ struct DiscoveryView: View {
     private func loadFollowedStreams() async {
         guard let token = store.twitchToken else { return }
         loadingFollowed = true; errorFollowed = nil
+
         do {
-            if let user = await getTwitchUser(token: token) {
+            // 3. CORRECTION DU REFRESH : On réutilise l'ID Twitch s'il est déjà connu
+            let currentUserId: String
+            if let existingId = store.twitchUserId, !existingId.isEmpty {
+                currentUserId = existingId
+            } else {
+                guard let user = await getTwitchUser(token: token) else {
+                    // On ne déconnecte plus l'utilisateur pour une simple erreur de réseau !
+                    errorFollowed = store.t("err_loading")
+                    loadingFollowed = false
+                    return
+                }
+                currentUserId = user.id
                 store.twitchUserId = user.id
                 await store.pullFromCloud(userId: user.id)
-                followedStreams = try await getFollowedStreams(token: token, userId: user.id)
-            } else {
-                store.logout()
-                errorFollowed = store.t("session_expired")
             }
+
+            followedStreams = try await getFollowedStreams(token: token, userId: currentUserId)
         } catch {
             errorFollowed = store.t("err_loading")
-            if error.localizedDescription.contains("Token") { store.logout() }
+            // On déconnecte UNIQUEMENT si l'erreur mentionne clairement un problème de token/auth
+            let errorDesc = error.localizedDescription.lowercased()
+            if errorDesc.contains("token") || errorDesc.contains("401") || errorDesc.contains("unauthorized") {
+                store.logout()
+            }
         }
         loadingFollowed = false
     }
