@@ -205,7 +205,7 @@ struct MainTabView: View {
     // MARK: – Playback
         private func playVod(_ id: String, _ title: String? = nil, _ thumb: String? = nil, _ streamer: String? = nil) {
         // 1. On sauvegarde dans l'historique
-        let item = HistoryItem(term: id, display: title ?? "VOD", thumb: thumb, type: .vod, streamer: streamer)
+        let item = HistoryItem(term: id, type: .vod, display: title ?? "VOD", thumb: thumb, streamer: streamer, addedAt: Date().timeIntervalSince1970 * 1000)
         store.saveToHistory(item)
         
         // 2. On lance la vidéo
