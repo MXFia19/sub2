@@ -1,4 +1,4 @@
-Name: TwitchUnblock
+name: TwitchUnblock
 
 options:
   bundleIdPrefix: com.yourname
