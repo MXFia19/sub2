@@ -10,15 +10,6 @@ WORKING_LOCATION="$(pwd)"
 APPLICATION_NAME=TwitchUnblock
 SCHEME_NAME="TwitchUnblock"
 
-# ─── XcodeGen ──────────────────────────────────────────────────
-if [ ! -d "$APPLICATION_NAME.xcodeproj" ]; then
-  echo "--- Generating .xcodeproj with XcodeGen ---"
-  if ! command -v xcodegen &> /dev/null; then
-    brew install xcodegen --quiet
-  fi
-  xcodegen generate --spec project.yml
-fi
-
 if [ ! -d "build" ]; then
   mkdir build
 fi
