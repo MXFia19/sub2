@@ -20,7 +20,7 @@ You can easily stay up-to-date with the latest Nightly builds by adding our offi
 2. Go to the **Sources** tab.
 3. Add the following URL:
    ```
-   https://raw.githubusercontent.com/MXFia19/TwitchUnblock/main/apps.json
+   https://raw.githubusercontent.com/MXFia19/TwitchUnblock/master/apps.json
    ```
 4. Download and install **TwitchUnblock** directly from the app.
 
