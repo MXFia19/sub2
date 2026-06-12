@@ -19,6 +19,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Make build script executable
+        run: chmod +x ./buildipa.sh
+
+      - name: Build iOS IPA
+        run: ./buildipa.sh
+
       - name: Define Release Variables
         id: vars
         run: |
@@ -31,49 +37,6 @@ jobs:
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "date=$BUILD_DATE" >> $GITHUB_OUTPUT
           echo "download_url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
-
-      # ✨ L'ÉTAPE MAGIQUE (Corrigée pour XcodeGen ET le bug des bandes noires)
-      - name: Inject Version, App Icon and LaunchScreen
-        run: |
-          echo "--- Fix du bug des bandes noires (LaunchScreen) & Versions ---"
-          sed -i '' "s/PRODUCT_NAME: TwitchUnblock/PRODUCT_NAME: TwitchUnblock\n        MARKETING_VERSION: ${{ steps.vars.outputs.version }}\n        CURRENT_PROJECT_VERSION: ${{ github.run_number }}\n        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon\n        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen/g" project.yml
-          
-          echo "--- Sécurisation du Info.plist ---"
-          find . -name "Info.plist" -exec plutil -replace CFBundleIdentifier -string "com.mxfia19.TwitchUnblock" {} \;
-          find . -name "Info.plist" -exec plutil -replace CFBundleShortVersionString -string "${{ steps.vars.outputs.version }}" {} \;
-          find . -name "Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \;
-          find . -name "Info.plist" -exec plutil -replace UILaunchStoryboardName -string "LaunchScreen" {} \;
-          
-          echo "--- Création de l'icône iOS ---"
-          mkdir -p Sources/Assets.xcassets/AppIcon.appiconset
-          curl -sL https://raw.githubusercontent.com/MXFia19/TwitchUnblock/master/assets/icon.png -o Sources/Assets.xcassets/AppIcon.appiconset/icon.png
-          cat <<EOF > Sources/Assets.xcassets/AppIcon.appiconset/Contents.json
-          {
-            "images" : [
-              {
-                "filename" : "icon.png",
-                "idiom" : "universal",
-                "platform" : "ios",
-                "size" : "1024x1024"
-              }
-            ],
-            "info" : {
-              "author" : "xcode",
-              "version" : 1
-            }
-          }
-          EOF
-
-      - name: Install XcodeGen & Generate Project
-        run: |
-          brew install xcodegen
-          xcodegen generate --spec project.yml
-
-      - name: Make build script executable
-        run: chmod +x ./buildipa.sh
-
-      - name: Build iOS IPA
-        run: ./buildipa.sh
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -91,8 +54,9 @@ jobs:
 
       - name: Update apps.json (Feather source)
         run: |
-          IPA_SIZE=$(stat -f%z build/TwitchUnblock.ipa || echo "1048576")
+          IPA_SIZE=$(wc -c < build/TwitchUnblock.ipa | tr -d ' ')
           
+          # Adaptation au format Feather : on ne met plus les infos à la racine de "apps[0]" mais dans "versions[0]"
           jq --arg version "${{ steps.vars.outputs.version }}" \
              --arg build "${{ github.run_number }}" \
              --arg date "${{ steps.vars.outputs.date }}" \
@@ -104,12 +68,7 @@ jobs:
              .apps[0].versions[0].downloadURL = $url |
              .apps[0].versions[0].size = $size' apps.json > apps.json.tmp
              
-          if [ -s apps.json.tmp ]; then
-            mv apps.json.tmp apps.json
-          else
-            echo "Erreur critique : le fichier apps.json généré est corrompu ou vide."
-            exit 1
-          fi
+          mv apps.json.tmp apps.json
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
