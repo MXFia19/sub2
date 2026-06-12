@@ -12,7 +12,6 @@ struct HeaderView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Left: logo + title
             HStack(spacing: 8) {
                 Text("🟣").font(.system(size: 20))
                 Text(store.t("title"))
@@ -22,31 +21,27 @@ struct HeaderView: View {
             }
             Spacer()
 
-            // Proxy toggle
             Button(action: { store.useProxy.toggle() }) {
                 Text(store.useProxy ? "🔒 Proxy" : "🔓 Direct")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.tMuted)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(Color.tSurface)
                     .cornerRadius(6)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.tBorder, lineWidth: 1))
             }
 
-            // Language cycle
             Button(action: cycleLang) {
                 Text(store.lang.flag)
                     .font(.system(size: 16))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(Color.tSurface)
                     .cornerRadius(6)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.tBorder, lineWidth: 1))
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 54)
+        .padding(.top, UIApplication.safeAreaTop + 8)  // safe area dynamique
         .padding(.bottom, 12)
         .background(Color.tCard)
         .overlay(Divider().background(Color.tBorder), alignment: .bottom)

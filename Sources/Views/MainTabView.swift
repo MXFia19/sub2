@@ -29,11 +29,12 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            Color.tDark.ignoresSafeArea()
+
             VStack(spacing: 0) {
                 HeaderView()
                     .zIndex(10)
 
-                // Screen content
                 Group {
                     switch activeTab {
                     case .discovery:
@@ -50,7 +51,7 @@ struct MainTabView: View {
 
                 CustomTabBar(activeTab: $activeTab)
             }
-            .background(Color.tDark)
+            .ignoresSafeArea() // le VStack part de y=0 ; Header et TabBar gèrent leur propre inset
 
             // ── Mini bar (player réduit) ──────────────────────────────
             if playerMode != nil && !playerVisible && qualityLinks != nil {
@@ -67,7 +68,6 @@ struct MainTabView: View {
                     .transition(.opacity)
             }
         }
-        .ignoresSafeArea(edges: .bottom)
     }
 
     // MARK: – Player Overlay
@@ -280,7 +280,7 @@ struct CustomTabBar: View {
             }
         }
         .padding(.top, 10)
-        .padding(.bottom, 28)
+        .padding(.bottom, UIApplication.safeAreaBottom + 8) // safe area dynamique
         .background(Color.tCard)
         .overlay(Divider().background(Color.tBorder), alignment: .top)
     }
