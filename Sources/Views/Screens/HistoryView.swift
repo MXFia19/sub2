@@ -25,14 +25,28 @@ struct HistoryView: View {
                             onPlayVod(item.term, item.display, item.thumb, item.streamer)
                         } label: {
                             HStack {
-                                // Miniature (à adapter selon tes composants)
-                                Rectangle()
-                                    .fill(Color.tSurface)
-                                    .frame(width: 120, height: 68)
+                                // ✨ Chargement de l'image de la VOD
+                                if let thumbURL = item.thumb, let url = URL(string: thumbURL) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView().frame(width: 120, height: 68)
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 120, height: 68)
+                                                .clipped()
+                                        case .failure:
+                                            fallbackRectangle
+                                        @unknown default:
+                                            fallbackRectangle
+                                        }
+                                    }
                                     .cornerRadius(8)
-                                    .overlay(
-                                        Text("VOD").foregroundColor(.tMuted).font(.caption)
-                                    )
+                                } else {
+                                    fallbackRectangle
+                                }
                                 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.display)
@@ -57,5 +71,14 @@ struct HistoryView: View {
             }
         }
         .background(Color.tDark)
+    }
+    
+    // Le rectangle gris de secours si l'image ne charge pas
+    private var fallbackRectangle: some View {
+        Rectangle()
+            .fill(Color.tSurface)
+            .frame(width: 120, height: 68)
+            .cornerRadius(8)
+            .overlay(Text("VOD").foregroundColor(.tMuted).font(.caption))
     }
 }
