@@ -11,7 +11,6 @@ private let qualityOrder = ["chunked","source","1080p60","1080p30","720p60","720
                              "480p30","360p30","160p30","audio_only"]
 
 // MARK: – M3U8 Parser
-// ✨ MISE À JOUR : Ajout du baseURL pour gérer les liens relatifs de Luminous
 func parseM3U8(_ content: String, baseURL: URL? = nil) -> QualityLinks {
     var links: QualityLinks = [:]
     let lines = content.components(separatedBy: "\n")
@@ -31,7 +30,6 @@ func parseM3U8(_ content: String, baseURL: URL? = nil) -> QualityLinks {
             if nextLine.hasPrefix("http") {
                 links[quality] = nextLine
             } else if let base = baseURL, let fullURL = URL(string: nextLine, relativeTo: base)?.absoluteString {
-                // Recompose l'URL si elle est relative (ex: Luminous)
                 links[quality] = fullURL
             } else {
                 links[quality] = nextLine
@@ -195,24 +193,36 @@ func getLive(channelName: String) async -> LiveData {
     let thumbnail = stream["previewImageURL"] as? String ?? ""
     var links: QualityLinks = [:]
 
-    // ✨ 1 - TENTATIVE LUMINOUS (SANS PUB)
+    // ✨ 1 - TENTATIVE LUMINOUS AVEC LOGS DÉTAILLÉS
+    logger.info("LIVE", "Tentative de connexion au serveur Luminous (Sans Pub)...")
     if let lumUrl = URL(string: "https://as.luminous.dev/live/\(login).m3u8") {
         var req = URLRequest(url: lumUrl)
         requestHeaders.forEach { req.setValue($1, forHTTPHeaderField: $0) }
         
-        if let (data, resp) = try? await URLSession.shared.data(for: req),
-           (resp as? HTTPURLResponse)?.statusCode == 200,
-           let body = String(data: data, encoding: .utf8) {
-            
-            links = parseM3U8(body, baseURL: lumUrl)
-            if !links.isEmpty {
-                logger.success("LIVE", "✅ Luminous (Sans Pub) OK: \(links.count) qualités")
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            if let httpResp = resp as? HTTPURLResponse {
+                if httpResp.statusCode == 200 {
+                    if let body = String(data: data, encoding: .utf8) {
+                        links = parseM3U8(body, baseURL: lumUrl)
+                        if !links.isEmpty {
+                            logger.success("LIVE", "✅ Luminous OK (Aucune Pub) : \(links.count) qualités")
+                        } else {
+                            logger.warn("LIVE", "⚠️ Luminous a répondu mais la playlist est vide. Bascule sur l'officiel.")
+                        }
+                    }
+                } else {
+                    logger.warn("LIVE", "⚠️ Luminous a échoué (Erreur HTTP \(httpResp.statusCode)). Bascule sur l'officiel.")
+                }
             }
+        } catch {
+            logger.error("LIVE", "❌ Impossible de joindre Luminous (\(error.localizedDescription)). Bascule sur l'officiel.")
         }
     }
 
-    // ✨ 2 - FALLBACK OFFICIEL TWITCH (Avec pub) si Luminous échoue
+    // ✨ 2 - FALLBACK OFFICIEL TWITCH (Avec pub)
     if links.isEmpty, let token = token {
+        logger.info("LIVE", "Tentative de connexion au serveur officiel Twitch...")
         var comps = URLComponents(string: "https://usher.ttvnw.net/api/channel/hls/\(login).m3u8")!
         comps.queryItems = [
             .init(name: "allow_source",               value: "true"),
@@ -229,7 +239,7 @@ func getLive(channelName: String) async -> LiveData {
            (resp as? HTTPURLResponse)?.statusCode == 200,
            let body = String(data: data, encoding: .utf8) {
             links = parseM3U8(body, baseURL: url)
-            logger.success("LIVE", "✅ \(links.count) qualités HLS (Serveur Officiel)")
+            logger.success("LIVE", "✅ Serveur Officiel Twitch OK : \(links.count) qualités HLS")
         }
     }
 
@@ -240,7 +250,7 @@ func getLive(channelName: String) async -> LiveData {
        let json2 = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
        let fbLinks = json2["links"] as? QualityLinks {
         links = fbLinks
-        logger.success("LIVE", "✅ Fallback worker OK \(links.count) qualités")
+        logger.success("LIVE", "✅ Fallback Cloudflare Worker OK : \(links.count) qualités")
     }
 
     return LiveData(title: title, game: game, thumbnail: thumbnail, avatar: avatar, links: links)
