@@ -50,13 +50,23 @@ enum Lang: String, CaseIterable, Identifiable {
     }
 }
 
-// ✨ NOUVEAU : Les sources disponibles
+// ✨ NOUVEAU : Les sources disponibles avec leurs emojis !
 enum LiveSource: String, CaseIterable, Identifiable, Codable {
     case auto = "auto"
     case luminous = "luminous"
     case twitch = "twitch"
     case cloudflare = "cloudflare"
     var id: String { rawValue }
+    
+    // Ajout de la propriété emoji que tu as appelée dans tes réglages
+    var emoji: String {
+        switch self {
+        case .auto:       return "🤖"
+        case .luminous:   return "⚡️"
+        case .twitch:     return "🟣"
+        case .cloudflare: return "☁️"
+        }
+    }
 }
 
 // MARK: – Translations
@@ -104,7 +114,6 @@ private let translations: [Lang: [String: String]] = [
         "proxy_enable": "Activer le proxy", "twitch_account": "Compte Twitch",
         "language": "Langue",
         
-        // ✨ NOUVELLES TRADUCTIONS POUR LES SOURCES
         "settings_source": "Serveur / Source Vidéo",
         "source_auto": "Auto (Recommandé)",
         "source_luminous": "Luminous (Sans Pubs)",
