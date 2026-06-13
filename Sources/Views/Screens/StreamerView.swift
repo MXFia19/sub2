@@ -15,12 +15,13 @@ struct StreamerView: View {
     @State private var errorMsg:   String? = nil
     @State private var searched    = false
     
-    // ✨ VARIABLES POUR LE SCROLL INFINI
+    // VARIABLES POUR LE SCROLL INFINI
     @State private var vodCursor:     String? = nil
     @State private var hasMoreVods    = false
     @State private var isLoadingMore  = false
 
-    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    // ✨ CORRECTION GRILLE : On force l'alignement vers le haut (.top) pour éviter que les cartes se décalent !
+    private let columns = [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)]
 
     private var filteredVods: [VodData] {
         guard !keywordInput.trimmingCharacters(in: .whitespaces).isEmpty else { return vods }
@@ -115,7 +116,7 @@ struct StreamerView: View {
                             .font(.system(size: 13, weight: .semibold)).foregroundColor(.tSuccess)
                             .padding(.horizontal, 16).padding(.top, 8)
 
-                        LazyVGrid(columns: columns, spacing: 12) {
+                        LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(filteredVods) { vod in
                                 let saved    = store.getVodProgress(vod.id)
                                 let progress = vod.lengthSeconds > 0 ? saved / Double(vod.lengthSeconds) : 0
@@ -123,17 +124,19 @@ struct StreamerView: View {
                                     onPlayVod(vod.id, vod.title, vod.previewThumbnailURL,
                                               channelInput.trimmingCharacters(in: .whitespaces).components(separatedBy: " ").first)
                                 }
-                                // ✨ DÉTECTEUR DE FIN DE PAGE POUR CHARGER LA SUITE
                                 .onAppear {
-                                    if vod.id == filteredVods.last?.id && hasMoreVods && !isLoadingMore {
-                                        Task { await loadMoreVods() }
+                                    // ✨ SECURITÉ : On empêche le double appel !
+                                    if vod.id == filteredVods.last?.id && hasMoreVods {
+                                        if !isLoadingMore {
+                                            isLoadingMore = true // Changement immédiat !
+                                            Task { await loadMoreVods() }
+                                        }
                                     }
                                 }
                             }
                         }
                         .padding(.horizontal, 16).padding(.top, 8)
                         
-                        // ✨ ROUE DE CHARGEMENT EN BAS DE PAGE
                         if isLoadingMore {
                             ProgressView()
                                 .tint(.tPrimary)
@@ -155,7 +158,7 @@ struct StreamerView: View {
         guard !name.isEmpty else { errorMsg = store.t("err_missing"); return }
         
         loading = true; errorMsg = nil; liveData = nil; vods = []; searched = true
-        vodCursor = nil; hasMoreVods = false; isLoadingMore = false // Reset pagination
+        vodCursor = nil; hasMoreVods = false; isLoadingMore = false
 
         async let liveTask    = getLive(channelName: name)
         async let videosTask  = getChannelVideos(channelName: name)
@@ -171,7 +174,6 @@ struct StreamerView: View {
             store.saveToHistory(item)
             liveData = live
             
-            // On sauvegarde la 1ère page de VODs
             vods = ch.videos
             vodCursor = ch.cursor
             hasMoreVods = ch.cursor != nil
@@ -179,21 +181,24 @@ struct StreamerView: View {
         loading = false
     }
     
-    // ✨ FONCTION POUR CHARGER LES PAGES SUIVANTES
     private func loadMoreVods() async {
-        guard let currentCursor = vodCursor, !isLoadingMore else { return }
-        
-        await MainActor.run { isLoadingMore = true }
+        guard let currentCursor = vodCursor else { 
+            await MainActor.run { isLoadingMore = false }
+            return 
+        }
         
         let name = channelInput.trimmingCharacters(in: .whitespaces).components(separatedBy: " ").first ?? ""
         let ch = await getChannelVideos(channelName: name, cursor: currentCursor)
         
         await MainActor.run {
-            self.vods.append(contentsOf: ch.videos)
+            // ✨ SECURITÉ : On retire les VODs en double pour éviter les bugs d'affichage !
+            let existingIds = Set(self.vods.map { $0.id })
+            let newVods = ch.videos.filter { !existingIds.contains($0.id) }
+            
+            self.vods.append(contentsOf: newVods)
             self.vodCursor = ch.cursor
-            self.hasMoreVods = ch.cursor != nil
+            self.hasMoreVods = (ch.cursor != nil && !newVods.isEmpty)
             self.isLoadingMore = false
         }
     }
 }
-
