@@ -27,7 +27,7 @@ struct MainTabView: View {
             switch self {
             case .discovery: return store.t("tab_discovery")
             case .streamer:  return store.t("tab_streamer")
-            case .history:   return "VODs"
+            case .history:   return store.t("tab_history")
             case .direct:    return store.t("tab_direct")
             case .settings:  return store.t("settings")
             }
@@ -37,12 +37,9 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // 1. Fond noir profond qui prend TOUT l'écran, y compris l'encoche
             Color.tDark.ignoresSafeArea()
 
-            // 2. Contenu principal
             VStack(spacing: 0) {
-                // Header (gère sa propre distance avec l'encoche nativement)
                 HeaderView()
                     .zIndex(10)
 
@@ -62,16 +59,17 @@ struct MainTabView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                // ✨ CORRECTION 1 : La Mini-bar est maintenant DANS la pile verticale, 
+                // juste au dessus du menu, s'emboîtant parfaitement sans grand espace !
+                if playerMode != nil && !playerVisible && qualityLinks != nil {
+                    miniBar
+                        .zIndex(99)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
                 CustomTabBar(activeTab: $activeTab)
             }
-            // 3. IMPORTANT : Autorise UNIQUEMENT le bas à s'étendre sous la barre d'accueil
             .ignoresSafeArea(edges: .bottom)
-
-            // ── Mini bar (player réduit) ──────────────────────────────
-            if playerMode != nil && !playerVisible && qualityLinks != nil {
-                miniBar
-                    .zIndex(99)
-            }
 
             // ── Player overlay ────────────────────────────────────────
             if playerMode != nil {
@@ -90,7 +88,6 @@ struct MainTabView: View {
         ZStack(alignment: .top) {
             Color.tDark.ignoresSafeArea()
             VStack(spacing: 0) {
-                // Header Player
                 HStack(spacing: 12) {
                     Button(store.t("reduce")) { withAnimation { playerVisible = false } }
                         .font(.system(size: 15, weight: .bold))
@@ -115,7 +112,6 @@ struct MainTabView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                // 4. On remplace le safeAreaHelper par un padding fixe propre
                 .padding(.top, 16) 
                 .padding(.bottom, 12)
                 .background(Color.tCard)
@@ -191,15 +187,18 @@ struct MainTabView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button { stopPlayer() } label: {
+                // Zone de clic agrandie pour pouvoir fermer plus facilement
                 Text("✕").foregroundColor(.tMuted).font(.system(size: 16, weight: .bold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
+        .padding(.horizontal, 16).padding(.vertical, 10)
         .background(Color.tCard)
         .cornerRadius(12)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.tPrimary.opacity(0.4), lineWidth: 1))
         .padding(.horizontal, 12)
-        .padding(.bottom, 100) // On remonte légèrement la mini-bar pour éviter la tab bar
+        .padding(.bottom, 8) // ✨ Seulement 8 pixels de marge avec le menu du bas
         .onTapGesture { withAnimation { playerVisible = true } }
     }
 
@@ -254,6 +253,9 @@ struct MainTabView: View {
     }
 
     private func stopPlayer() {
+        // ✨ CORRECTION 2 : On envoie un signal pour couper l'audio !
+        NotificationCenter.default.post(name: NSNotification.Name("ForceStopVideo"), object: nil)
+
         withAnimation {
             playerVisible = false
             playerMode    = nil
@@ -290,6 +292,7 @@ struct CustomTabBar: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(isActive ? .tPrimary : .tMuted)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -297,7 +300,6 @@ struct CustomTabBar: View {
             }
         }
         .padding(.top, 10)
-        // 5. On remplace safeAreaBottom par 34, qui est la taille standard de la zone d'accueil iOS
         .padding(.bottom, 34) 
         .background(Color.tCard)
         .overlay(Divider().background(Color.tBorder), alignment: .top)
