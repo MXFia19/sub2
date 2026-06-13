@@ -1,10 +1,5 @@
 import SwiftUI
 
-// MARK: – LiveSource
-enum LiveSource: String, CaseIterable {
-    case auto, luminous, twitch, cloudflare
-}
-
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @AppStorage("liveSource") private var liveSource: LiveSource = .auto
