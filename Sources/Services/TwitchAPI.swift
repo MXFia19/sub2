@@ -11,7 +11,8 @@ private let qualityOrder = ["chunked","source","1080p60","1080p30","720p60","720
                              "480p30","360p30","160p30","audio_only"]
 
 // MARK: – M3U8 Parser
-func parseM3U8(_ content: String) -> QualityLinks {
+// ✨ MISE À JOUR : Ajout du baseURL pour gérer les liens relatifs de Luminous
+func parseM3U8(_ content: String, baseURL: URL? = nil) -> QualityLinks {
     var links: QualityLinks = [:]
     let lines = content.components(separatedBy: "\n")
     for i in 0..<lines.count {
@@ -26,7 +27,16 @@ func parseM3U8(_ content: String) -> QualityLinks {
             quality = String(line[r]).replacingOccurrences(of: "RESOLUTION=", with: "")
         }
         let nextLine = i + 1 < lines.count ? lines[i + 1].trimmingCharacters(in: .whitespaces) : ""
-        if !nextLine.isEmpty && !nextLine.hasPrefix("#") { links[quality] = nextLine }
+        if !nextLine.isEmpty && !nextLine.hasPrefix("#") {
+            if nextLine.hasPrefix("http") {
+                links[quality] = nextLine
+            } else if let base = baseURL, let fullURL = URL(string: nextLine, relativeTo: base)?.absoluteString {
+                // Recompose l'URL si elle est relative (ex: Luminous)
+                links[quality] = fullURL
+            } else {
+                links[quality] = nextLine
+            }
+        }
     }
     return links
 }
@@ -103,7 +113,7 @@ private func storyboardHack(vodId: String) async -> QualityLinks {
     return found
 }
 
-// MARK: – getM3U8
+// MARK: – getM3U8 (VODs)
 func getM3U8(vodId: String) async -> M3U8Data {
     logger.info("M3U8", "Lancement VOD \(vodId)")
 
@@ -122,7 +132,7 @@ func getM3U8(vodId: String) async -> M3U8Data {
            let (data, resp) = try? await URLSession.shared.data(for: req),
            (resp as? HTTPURLResponse)?.statusCode == 200,
            let body = String(data: data, encoding: .utf8) {
-            let links = parseM3U8(body)
+            let links = parseM3U8(body, baseURL: url)
             if !links.isEmpty {
                 logger.success("M3U8", "[1/3] ✅ \(links.count) qualités", links.keys.joined(separator: ", "))
                 return M3U8Data(links: links, error: nil)
@@ -152,7 +162,7 @@ func getM3U8(vodId: String) async -> M3U8Data {
     return M3U8Data(links: [:], error: "VOD introuvable ou réservée aux abonnés")
 }
 
-// MARK: – getLive
+// MARK: – getLive (STREAMS)
 func getLive(channelName: String) async -> LiveData {
     let login = channelName.trimmingCharacters(in: .whitespaces).lowercased()
     logger.info("LIVE", "Lancement stream \"\(login)\"")
@@ -185,7 +195,24 @@ func getLive(channelName: String) async -> LiveData {
     let thumbnail = stream["previewImageURL"] as? String ?? ""
     var links: QualityLinks = [:]
 
-    if let token = token {
+    // ✨ 1 - TENTATIVE LUMINOUS (SANS PUB)
+    if let lumUrl = URL(string: "https://as.luminous.dev/live/\(login).m3u8") {
+        var req = URLRequest(url: lumUrl)
+        requestHeaders.forEach { req.setValue($1, forHTTPHeaderField: $0) }
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           (resp as? HTTPURLResponse)?.statusCode == 200,
+           let body = String(data: data, encoding: .utf8) {
+            
+            links = parseM3U8(body, baseURL: lumUrl)
+            if !links.isEmpty {
+                logger.success("LIVE", "✅ Luminous (Sans Pub) OK: \(links.count) qualités")
+            }
+        }
+    }
+
+    // ✨ 2 - FALLBACK OFFICIEL TWITCH (Avec pub) si Luminous échoue
+    if links.isEmpty, let token = token {
         var comps = URLComponents(string: "https://usher.ttvnw.net/api/channel/hls/\(login).m3u8")!
         comps.queryItems = [
             .init(name: "allow_source",               value: "true"),
@@ -201,24 +228,25 @@ func getLive(channelName: String) async -> LiveData {
            let (data, resp) = try? await URLSession.shared.data(from: url),
            (resp as? HTTPURLResponse)?.statusCode == 200,
            let body = String(data: data, encoding: .utf8) {
-            links = parseM3U8(body)
-            logger.success("LIVE", "\(links.count) qualités HLS", links.keys.joined(separator: ", "))
+            links = parseM3U8(body, baseURL: url)
+            logger.success("LIVE", "✅ \(links.count) qualités HLS (Serveur Officiel)")
         }
     }
 
+    // ✨ 3 - FALLBACK FINAL CLOUDFLARE WORKER
     if links.isEmpty,
        let url = URL(string: "\(kAPIURL)/api/get-live?name=\(login)&proxy=false"),
        let (data, _) = try? await URLSession.shared.data(from: url),
        let json2 = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
        let fbLinks = json2["links"] as? QualityLinks {
         links = fbLinks
-        logger.success("LIVE", "Fallback worker OK \(links.count) qualités")
+        logger.success("LIVE", "✅ Fallback worker OK \(links.count) qualités")
     }
 
     return LiveData(title: title, game: game, thumbnail: thumbnail, avatar: avatar, links: links)
 }
 
-// ✨ MARK: – getChannelVideos (Mise à jour pour charger 100 VODs)
+// MARK: – getChannelVideos
 func getChannelVideos(channelName: String, cursor: String? = nil) async -> (videos: [VodData], avatar: String?, error: String?, cursor: String?) {
     logger.info("VIDEOS", "Chargement VODs de \"\(channelName)\"\(cursor != nil ? " (Page suivante)" : "")")
     
@@ -286,7 +314,6 @@ func getTwitchUser(token: String) async -> TwitchUser? {
 }
 
 func getFollowedStreams(token: String, userId: String) async throws -> [TwitchStream] {
-    // ✨ On monte aussi la limite à 50 pour les chaînes suivies en live par précaution
     guard let url = URL(string: "https://api.twitch.tv/helix/streams/followed?user_id=\(userId)&first=50") else { return [] }
     var req = URLRequest(url: url)
     req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -300,7 +327,6 @@ func getFollowedStreams(token: String, userId: String) async throws -> [TwitchSt
 }
 
 func getTopStreams(token: String, lang: String? = nil) async throws -> [TwitchStream] {
-    // ✨ On monte aussi la limite à 50 pour la découverte
     var urlStr = "https://api.twitch.tv/helix/streams?first=50"
     if let lang { urlStr += "&language=\(lang)" }
     guard let url = URL(string: urlStr) else { return [] }
