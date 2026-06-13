@@ -14,6 +14,11 @@ struct StreamerView: View {
     @State private var avatarURL   = ""
     @State private var errorMsg:   String? = nil
     @State private var searched    = false
+    
+    // ✨ VARIABLES POUR LE SCROLL INFINI
+    @State private var vodCursor:     String? = nil
+    @State private var hasMoreVods    = false
+    @State private var isLoadingMore  = false
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -32,9 +37,8 @@ struct StreamerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
 
-                   // ── Search bar ──────────────────────────────────────
+                // ── Search bar ──────────────────────────────────────
                 VStack(spacing: 8) {
-                    // ✨ L'ajout de alignment: .top est ici :
                     HStack(alignment: .top, spacing: 10) { 
                         AutocompleteInputView(
                             text: $channelInput,
@@ -119,9 +123,23 @@ struct StreamerView: View {
                                     onPlayVod(vod.id, vod.title, vod.previewThumbnailURL,
                                               channelInput.trimmingCharacters(in: .whitespaces).components(separatedBy: " ").first)
                                 }
+                                // ✨ DÉTECTEUR DE FIN DE PAGE POUR CHARGER LA SUITE
+                                .onAppear {
+                                    if vod.id == filteredVods.last?.id && hasMoreVods && !isLoadingMore {
+                                        Task { await loadMoreVods() }
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 16).padding(.top, 8)
+                        
+                        // ✨ ROUE DE CHARGEMENT EN BAS DE PAGE
+                        if isLoadingMore {
+                            ProgressView()
+                                .tint(.tPrimary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 20)
+                        }
                     }
                 }
 
@@ -135,7 +153,9 @@ struct StreamerView: View {
     private func search(_ channel: String? = nil) async {
         let name = (channel ?? channelInput).trimmingCharacters(in: .whitespaces).components(separatedBy: " ").first ?? ""
         guard !name.isEmpty else { errorMsg = store.t("err_missing"); return }
+        
         loading = true; errorMsg = nil; liveData = nil; vods = []; searched = true
+        vodCursor = nil; hasMoreVods = false; isLoadingMore = false // Reset pagination
 
         async let liveTask    = getLive(channelName: name)
         async let videosTask  = getChannelVideos(channelName: name)
@@ -150,8 +170,30 @@ struct StreamerView: View {
             let item = HistoryItem(term: name, type: .channel, display: name, thumb: nil, streamer: nil, addedAt: Date().timeIntervalSince1970 * 1000)
             store.saveToHistory(item)
             liveData = live
+            
+            // On sauvegarde la 1ère page de VODs
             vods = ch.videos
+            vodCursor = ch.cursor
+            hasMoreVods = ch.cursor != nil
         }
         loading = false
     }
+    
+    // ✨ FONCTION POUR CHARGER LES PAGES SUIVANTES
+    private func loadMoreVods() async {
+        guard let currentCursor = vodCursor, !isLoadingMore else { return }
+        
+        await MainActor.run { isLoadingMore = true }
+        
+        let name = channelInput.trimmingCharacters(in: .whitespaces).components(separatedBy: " ").first ?? ""
+        let ch = await getChannelVideos(channelName: name, cursor: currentCursor)
+        
+        await MainActor.run {
+            self.vods.append(contentsOf: ch.videos)
+            self.vodCursor = ch.cursor
+            self.hasMoreVods = ch.cursor != nil
+            self.isLoadingMore = false
+        }
+    }
 }
+
