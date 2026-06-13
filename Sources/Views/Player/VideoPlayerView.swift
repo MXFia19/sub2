@@ -2,7 +2,7 @@ import SwiftUI
 import AVKit
 import AVFoundation
 
-// MARK: – AVPlayerViewController wrapper (UIViewControllerRepresentable)
+// MARK: – AVPlayerViewController wrapper
 struct NativeVideoPlayer: UIViewControllerRepresentable {
     let url: URL
     let savedTime: Double
@@ -26,7 +26,6 @@ struct NativeVideoPlayer: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: AVPlayerViewController, context: Context) {
-        // URL changed → replace item
         let currentURL = (vc.player?.currentItem?.asset as? AVURLAsset)?.url
         if currentURL != url {
             let player = AVPlayer(url: url)
@@ -39,12 +38,26 @@ struct NativeVideoPlayer: UIViewControllerRepresentable {
         }
     }
 
+    // ✨ CORRECTION : Force l'arrêt de la vidéo quand la vue est détruite
+    static func dismantleUIViewController(_ vc: AVPlayerViewController, coordinator: Coordinator) {
+        vc.player?.pause()
+        vc.player = nil
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator {
-        var playerVC: AVPlayerViewController?
+        weak var playerVC: AVPlayerViewController?
         private var timeObserver: Any?
         private var playerRef: AVPlayer?
+
+        init() {
+            // ✨ CORRECTION : Coupe instantanément le son si on reçoit le signal "ForceStopVideo"
+            NotificationCenter.default.addObserver(forName: NSNotification.Name("ForceStopVideo"), object: nil, queue: .main) { [weak self] _ in
+                self?.playerVC?.player?.pause()
+                self?.playerVC?.player = nil
+            }
+        }
 
         func setupObserver(player: AVPlayer, onProgress: @escaping (Double) -> Void) {
             if let existing = timeObserver { playerRef?.removeTimeObserver(existing) }
@@ -57,11 +70,12 @@ struct NativeVideoPlayer: UIViewControllerRepresentable {
 
         deinit {
             if let obs = timeObserver { playerRef?.removeTimeObserver(obs) }
+            NotificationCenter.default.removeObserver(self)
         }
     }
 }
 
-// MARK: – Full Video Player View (with quality picker + external apps)
+// MARK: – Full Video Player View
 struct VideoPlayerView: View {
     let qualityLinks: QualityLinks
     let vodId: String?
@@ -125,7 +139,7 @@ struct VideoPlayerView: View {
                 VStack(spacing: 0) {
                     ForEach(qualities, id: \.self) { q in
                         Button {
-                            currentTime = 0  // will seek via savedTime on remount
+                            currentTime = 0
                             selectedQuality = q
                             showQualityPicker = false
                         } label: {
