@@ -218,8 +218,7 @@ func getLive(channelName: String) async -> LiveData {
     return LiveData(title: title, game: game, thumbnail: thumbnail, avatar: avatar, links: links)
 }
 
-// ✨ MARK: – getChannelVideos (Mise à jour avec Scroll Infini)
-// Note: On retourne un Tuples pour ne pas avoir à modifier ton fichier Models.swift !
+// ✨ MARK: – getChannelVideos (Mise à jour pour charger 100 VODs)
 func getChannelVideos(channelName: String, cursor: String? = nil) async -> (videos: [VodData], avatar: String?, error: String?, cursor: String?) {
     logger.info("VIDEOS", "Chargement VODs de \"\(channelName)\"\(cursor != nil ? " (Page suivante)" : "")")
     
@@ -228,7 +227,7 @@ func getChannelVideos(channelName: String, cursor: String? = nil) async -> (vide
     query {
         user(login: "\(channelName)") {
             profileImageURL(width: 70)
-            videos(first: 20, type: ARCHIVE, sort: TIME\(afterCursor)) {
+            videos(first: 100, type: ARCHIVE, sort: TIME\(afterCursor)) {
                 edges { cursor node { id title previewThumbnailURL(height: 180, width: 320) publishedAt lengthSeconds } }
                 pageInfo { hasNextPage }
             }
@@ -259,7 +258,6 @@ func getChannelVideos(channelName: String, cursor: String? = nil) async -> (vide
         )
     }
     
-    // ✨ Extraction du curseur GraphQL pour la page suivante
     let pageInfo = videosDict?["pageInfo"] as? [String: Any]
     let hasNextPage = pageInfo?["hasNextPage"] as? Bool ?? false
     let nextCursor = hasNextPage ? (edges.last?["cursor"] as? String) : nil
@@ -288,7 +286,8 @@ func getTwitchUser(token: String) async -> TwitchUser? {
 }
 
 func getFollowedStreams(token: String, userId: String) async throws -> [TwitchStream] {
-    guard let url = URL(string: "https://api.twitch.tv/helix/streams/followed?user_id=\(userId)&first=20") else { return [] }
+    // ✨ On monte aussi la limite à 50 pour les chaînes suivies en live par précaution
+    guard let url = URL(string: "https://api.twitch.tv/helix/streams/followed?user_id=\(userId)&first=50") else { return [] }
     var req = URLRequest(url: url)
     req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     req.setValue(kHelixClientID, forHTTPHeaderField: "Client-Id")
@@ -301,7 +300,8 @@ func getFollowedStreams(token: String, userId: String) async throws -> [TwitchSt
 }
 
 func getTopStreams(token: String, lang: String? = nil) async throws -> [TwitchStream] {
-    var urlStr = "https://api.twitch.tv/helix/streams?first=20"
+    // ✨ On monte aussi la limite à 50 pour la découverte
+    var urlStr = "https://api.twitch.tv/helix/streams?first=50"
     if let lang { urlStr += "&language=\(lang)" }
     guard let url = URL(string: urlStr) else { return [] }
     var req = URLRequest(url: url)
