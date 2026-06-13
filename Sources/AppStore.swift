@@ -1,33 +1,6 @@
 import SwiftUI
 import Combine
 
-// MARK: - Modèles d'historique
-struct HistoryItem: Identifiable, Codable {
-    var id: String { term }
-    let term: String
-    let type: HistoryType
-    let display: String
-    let thumb: String?
-    let streamer: String?
-    let addedAt: Double
-}
-
-enum HistoryType: String, Codable {
-    case vod, live
-}
-
-// MARK: - Langues
-enum Lang: String, CaseIterable {
-    case fr, en
-    
-    var flag: String {
-        switch self {
-        case .fr: return "🇫🇷"
-        case .en: return "🇬🇧"
-        }
-    }
-}
-
 // MARK: - AppStore Principal
 class AppStore: ObservableObject {
     @Published var lang: Lang {
