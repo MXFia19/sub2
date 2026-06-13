@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: – StreamCardView (replaces StreamCard.tsx)
+// MARK: – StreamCardView
 struct StreamCardView: View {
     let stream: TwitchStream
     let onPress: () -> Void
@@ -36,6 +36,9 @@ struct StreamCardView: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.tText)
                         .lineLimit(2)
+                        // Force une hauteur fixe pour éviter les décalages dans la grille
+                        .frame(height: 38, alignment: .top)
+                    
                     Text("\(stream.userName)\(stream.gameName.isEmpty ? "" : " • \(stream.gameName)")")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.tPrimary)
@@ -50,10 +53,10 @@ struct StreamCardView: View {
     }
 }
 
-// MARK: – VodCardView (replaces VodCard.tsx)
+// MARK: – VodCardView
 struct VodCardView: View {
     let vod: VodData
-    let progress: Double   // 0–1
+    let progress: Double
     let onPress: () -> Void
 
     private var dateString: String {
@@ -88,7 +91,11 @@ struct VodCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(vod.title)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.tText).lineLimit(2)
+                        .foregroundColor(.tText)
+                        .lineLimit(2)
+                        // Force une hauteur fixe pour l'alignement
+                        .frame(height: 34, alignment: .top)
+                        
                     Text("\(dateString) • \(formatDuration(vod.lengthSeconds))")
                         .font(.system(size: 11)).foregroundColor(.tMuted)
                 }
@@ -101,7 +108,7 @@ struct VodCardView: View {
     }
 }
 
-// MARK: – LiveCardView (replaces LiveCard.tsx)
+// MARK: – LiveCardView
 struct LiveCardView: View {
     let isOnline: Bool
     let title: String
@@ -115,9 +122,7 @@ struct LiveCardView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Left column
             HStack(alignment: .top, spacing: 12) {
-                // Avatar
                 AsyncImage(url: URL(string: avatarURL)) { img in
                     img.resizable().scaledToFill()
                 } placeholder: {
@@ -128,14 +133,12 @@ struct LiveCardView: View {
                 .overlay(Circle().stroke(Color.tPrimary, lineWidth: 2))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    // Badge
                     Text(isOnline ? store.t("live_on") : store.t("offline"))
                         .font(.system(size: 11, weight: .bold)).foregroundColor(.white)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(isOnline ? Color.tLive : Color(hex: "555555"))
                         .cornerRadius(4)
 
-                    // Title
                     Text(title)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(isOnline ? .tText : .tMuted)
@@ -161,7 +164,6 @@ struct LiveCardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Thumbnail (online only)
             if isOnline, let thumb = thumbnailURL, !thumb.isEmpty {
                 AsyncImage(url: URL(string: thumb.replacingOccurrences(of: "{width}", with: "320").replacingOccurrences(of: "{height}", with: "180"))) { img in
                     img.resizable().aspectRatio(16/9, contentMode: .fill)
