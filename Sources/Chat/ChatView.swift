@@ -35,7 +35,6 @@ struct ChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            // Messages are inserted at index 0 (newest first), display reversed
                             ForEach(chat.messages.reversed()) { msg in
                                 ChatMessageRow(message: msg)
                                     .id(msg.id)
@@ -43,7 +42,7 @@ struct ChatView: View {
                         }
                         .padding(.vertical, 6)
                     }
-                    // ✨ CORRECTION : Syntaxe compatible avec iOS 16
+                    // ✅ Syntaxe compatible avec iOS 16 (sans le _,)
                     .onChange(of: chat.messages.first?.id) { newId in
                         guard autoScroll, let id = newId else { return }
                         withAnimation(.linear(duration: 0.1)) {
@@ -113,7 +112,7 @@ struct ChatMessageRow: View {
                     Rectangle().fill(Color.tWarning).frame(width: 3)
                 }
 
-                FlowMessageView(message: message)
+                WrappingHStack(message: message)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
             }
@@ -122,47 +121,15 @@ struct ChatMessageRow: View {
     }
 }
 
-// MARK: – Flow layout for badges + username + tokens
-struct FlowMessageView: View {
-    let message: ChatMessage
-
-    var body: some View {
-        // We build a single line-wrapping layout using a custom approach
-        MessageContentView(message: message)
-    }
-}
-
-// MARK: – Message content using Text + attachments
-struct MessageContentView: View {
-    let message: ChatMessage
-    @State private var height: CGFloat = 20
-
-    var body: some View {
-        // Build inline content
-        TokenFlowView(message: message)
-    }
-}
-
-// MARK: – Token Flow (wrapping layout)
-struct TokenFlowView: View {
-    let message: ChatMessage
-
-    var body: some View {
-        // We use a modified approach: HStack with wrapping via GeometryReader
-        WrappingHStack(message: message)
-    }
-}
-
-// MARK: – Wrapping HStack (manual flow layout)
+// MARK: – Wrapping HStack (Native iOS 16 Layout)
 struct WrappingHStack: View {
     let message: ChatMessage
 
     var body: some View {
-        // Build all "blocks" (badge images, username, text spans, emote images)
         let blocks = buildBlocks()
 
-        // Use a flow layout via embedded VStack+HStack
-        FlowLayout(spacing: 2) {
+        // ✨ LE NOUVEAU MOTEUR DE MISE EN PAGE PARFAIT
+        MessageFlowLayout(spacing: 4, lineSpacing: 4) {
             // Badges
             ForEach(message.badges) { badge in
                 AsyncImage(url: URL(string: badge.url)) { img in
@@ -192,6 +159,8 @@ struct WrappingHStack: View {
                 }
             }
         }
+        // Force l'alignement sur la gauche
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func buildBlocks() -> [TokenBlock] {
@@ -206,50 +175,58 @@ struct TokenBlock: Identifiable {
     let content: MessageToken
 }
 
-// MARK: – Flow Layout (wrapping)
-struct FlowLayout<Content: View>: View {
-    let spacing: CGFloat
-    @ViewBuilder let content: Content
+// MARK: – Native Message Layout Algorithm Corrigé
+struct MessageFlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
 
-    @State private var totalHeight: CGFloat = 0
-
-    var body: some View {
-        GeometryReader { geo in
-            self.generateContent(in: geo)
-        }
-        .frame(height: totalHeight)
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        // Sécurise la largeur pour éviter un plantage ou un calcul infini
+        let width = proposal.replacingUnspecifiedDimensions(by: .init(width: UIScreen.main.bounds.width, height: 0)).width
+        return computeLayout(width: width, subviews: subviews).size
     }
 
-    private func generateContent(in geo: GeometryProxy) -> some View {
-        var width  = CGFloat.zero
-        var height = CGFloat.zero
-        var lastHeight = CGFloat.zero
-
-        return ZStack(alignment: .topLeading) {
-            content
-                .fixedSize(horizontal: false, vertical: true)
-                .alignmentGuide(.leading) { d in
-                    if abs(width - d.width) > geo.size.width {
-                        width  = 0
-                        height -= lastHeight + spacing
-                    }
-                    let result = width
-                    if d[.leading] == d[.trailing] { width = 0 }
-                    else { width -= d.width + spacing }
-                    return result
-                }
-                .alignmentGuide(.top) { d in
-                    lastHeight = d.height
-                    let result = height
-                    return result
-                }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = computeLayout(width: bounds.width, subviews: subviews)
+        for (index, subview) in subviews.enumerated() {
+            let point = layout.positions[index]
+            // Aligne verticalement l'élément au milieu de la ligne
+            let yOffset = (layout.lineHeights[index] - subview.sizeThatFits(.unspecified).height) / 2
+            subview.place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y + yOffset), proposal: .unspecified)
         }
-        .background(GeometryReader { g -> Color in
-            DispatchQueue.main.async {
-                self.totalHeight = g.size.height
+    }
+
+    // Le moteur mathématique qui aligne chaque mot de gauche à droite
+    private func computeLayout(width: CGFloat, subviews: Subviews) -> (size: CGSize, positions: [CGPoint], lineHeights: [CGFloat]) {
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var maxLineHeight: CGFloat = 0
+        
+        var positions: [CGPoint] = []
+        var lineHeights: [CGFloat] = Array(repeating: 0, count: subviews.count)
+        var lineStartIndex = 0
+
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            
+            // Si on dépasse l'écran, on passe à la ligne
+            if currentX > 0 && currentX + size.width > width {
+                for j in lineStartIndex..<index { lineHeights[j] = maxLineHeight }
+                currentX = 0
+                currentY += maxLineHeight + lineSpacing
+                maxLineHeight = 0
+                lineStartIndex = index
             }
-            return Color.clear
-        })
+            
+            positions.append(CGPoint(x: currentX, y: currentY))
+            maxLineHeight = max(maxLineHeight, size.height)
+            currentX += size.width + spacing
+        }
+        
+        // Dernière ligne
+        for j in lineStartIndex..<subviews.count { lineHeights[j] = maxLineHeight }
+
+        return (CGSize(width: width, height: currentY + maxLineHeight), positions, lineHeights)
     }
 }
 
@@ -265,17 +242,15 @@ struct CachedEmoteImage: View {
                 img.resizable()
                     .interpolation(.medium)
                     .scaledToFit()
-                    .frame(height: 22)
             case .failure:
-                Text(name)
-                    .font(.system(size: 11))
-                    .foregroundColor(.tMuted)
+                Text(name).font(.system(size: 13)).foregroundColor(.tMuted)
             case .empty:
-                Color.clear.frame(width: 22, height: 22)
+                Color.clear
             @unknown default:
                 EmptyView()
             }
         }
-        .frame(height: 22)
+        // Force la taille pour éviter que le chat tremble quand l'image charge !
+        .frame(height: 24)
     }
 }
