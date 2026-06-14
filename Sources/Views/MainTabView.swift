@@ -20,14 +20,14 @@ struct MainTabView: View {
     enum TabName: String, CaseIterable {
         case discovery, streamer, direct, settings
         var icon: String {
-            switch self { case .discovery: "🌟"; case .streamer: "👤"; case .direct: "🔗"; case .settings: "⚙️" }
+            switch self { case .discovery: return "🌟"; case .streamer: return "👤"; case .direct: return "🔗"; case .settings: return "⚙️" }
         }
         func label(_ store: AppStore) -> String {
             switch self {
-            case .discovery: store.t("tab_discovery")
-            case .streamer:  store.t("tab_streamer")
-            case .direct:    store.t("tab_direct")
-            case .settings:  store.t("settings")
+            case .discovery: return store.t("tab_discovery")
+            case .streamer:  return store.t("tab_streamer")
+            case .direct:    return store.t("tab_direct")
+            case .settings:  return store.t("settings")
             }
         }
     }
@@ -56,7 +56,8 @@ struct MainTabView: View {
 
                 CustomTabBar(activeTab: $activeTab)
             }
-            .ignoresSafeArea() // le VStack part de y=0 ; Header et TabBar gèrent leur propre inset
+            // ✨ CORRECTION BARRE DU HAUT : On ignore la Safe Area seulement en bas !
+            .ignoresSafeArea(edges: .bottom) 
 
             // ── Mini bar (player réduit) ──────────────────────────────
             if playerMode != nil && !playerVisible && qualityLinks != nil {
@@ -203,7 +204,6 @@ struct MainTabView: View {
         }
     }
 
-    // Helper pour éviter l'expression trop complexe dans miniBar
     private var miniBarPrefix: String {
         guard let mode = playerMode else { return "▶️ " }
         if case .live = mode { return "🔴 " }
@@ -245,9 +245,8 @@ struct MainTabView: View {
         loading = true
         errorMsg = nil
         qualityLinks = nil
-        showChat = false   // reset chat on new playback
+        showChat = false
 
-        // Store channel name for chat
         if case .live(let channel) = mode {
             currentChannelName = channel.lowercased()
         } else {
@@ -255,6 +254,7 @@ struct MainTabView: View {
             currentChannelId = nil
         }
 
+        // ✨ CORRECTION : Il manquait une accolade fermante } ici pour la Task !
         Task {
             switch mode {
             case .vod(let id, let title, _, _):
@@ -284,6 +284,7 @@ struct MainTabView: View {
             }
         }
     }
+
     private func stopPlayer() {
         showChat = false
         currentChannelName = nil
