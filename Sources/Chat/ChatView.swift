@@ -42,13 +42,14 @@ struct ChatView: View {
                             }
                         }
                         .padding(.vertical, 6)
-                    }
-                    .onChange(of: chat.messages.first?.id) { _, newId in
+                    }                  
+                                  .onChange(of: chat.messages.first?.id) { newId in
                         guard autoScroll, let id = newId else { return }
                         withAnimation(.linear(duration: 0.1)) {
                             proxy.scrollTo(id, anchor: .bottom)
                         }
                     }
+
                 }
 
                 // Scroll to bottom button
