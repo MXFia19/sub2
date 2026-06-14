@@ -116,7 +116,6 @@ struct ChatMessageRow: View {
                     .padding(.vertical, 4)
             }
         }
-        // ✨ CORRECTION 1 : Force la ligne entière à s'aligner à gauche
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(message.isHighlight ? Color.tWarning.opacity(0.08) : Color.clear)
     }
@@ -136,7 +135,7 @@ struct WrappingHStack: View {
                     if let img = phase.image {
                         img.resizable().interpolation(.medium).scaledToFit()
                     } else {
-                        // ✨ CORRECTION 2 : Limite la taille de l'espace vide pour éviter de pousser le texte
+                        // Empêche le badge vide de prendre tout l'espace
                         Color.clear.frame(width: 16)
                     }
                 }
@@ -164,6 +163,7 @@ struct WrappingHStack: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func buildBlocks() -> [TokenBlock] {
@@ -184,9 +184,8 @@ struct MessageFlowLayout: Layout {
     var lineSpacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        // ✨ CORRECTION 3 : Sécurise la largeur max pour un calcul parfait des hauteurs
-        let availableWidth = proposal.width ?? UIScreen.main.bounds.width
-        let clampWidth = availableWidth > 10000 ? UIScreen.main.bounds.width : availableWidth
+        let width = proposal.width ?? UIScreen.main.bounds.width
+        let clampWidth = (width <= 0 || width > 10000) ? UIScreen.main.bounds.width : width
         return computeLayout(width: clampWidth, subviews: subviews).size
     }
 
@@ -195,6 +194,8 @@ struct MessageFlowLayout: Layout {
         for (index, subview) in subviews.enumerated() {
             let point = layout.positions[index]
             let yOffset = (layout.lineHeights[index] - subview.sizeThatFits(.unspecified).height) / 2
+            
+            // On place toujours par rapport à bounds.minX (qui est le bord gauche absolu)
             subview.place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y + yOffset), proposal: .unspecified)
         }
     }
@@ -203,15 +204,14 @@ struct MessageFlowLayout: Layout {
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var maxLineHeight: CGFloat = 0
-        var actualMaxWidth: CGFloat = 0
-
+        
         var positions: [CGPoint] = []
         var lineHeights: [CGFloat] = Array(repeating: 0, count: subviews.count)
         var lineStartIndex = 0
 
         for (index, subview) in subviews.enumerated() {
             let size = subview.sizeThatFits(.unspecified)
-
+            
             if currentX > 0 && currentX + size.width > width {
                 for j in lineStartIndex..<index { lineHeights[j] = maxLineHeight }
                 currentX = 0
@@ -219,16 +219,18 @@ struct MessageFlowLayout: Layout {
                 maxLineHeight = 0
                 lineStartIndex = index
             }
-
+            
             positions.append(CGPoint(x: currentX, y: currentY))
             maxLineHeight = max(maxLineHeight, size.height)
             currentX += size.width + spacing
-            actualMaxWidth = max(actualMaxWidth, currentX - spacing)
         }
-
+        
         for j in lineStartIndex..<subviews.count { lineHeights[j] = maxLineHeight }
 
-        return (CGSize(width: actualMaxWidth, height: currentY + maxLineHeight), positions, lineHeights)
+        // ✨ LA CORRECTION MAGIQUE : 
+        // On retourne `width` au lieu de la vraie largeur du texte.
+        // La vue prendra toujours 100% de la largeur du téléphone, donc SwiftUI ne pourra JAMAIS la centrer !
+        return (CGSize(width: width, height: currentY + maxLineHeight), positions, lineHeights)
     }
 }
 
@@ -246,8 +248,8 @@ struct CachedEmoteImage: View {
             } else if phase.error != nil {
                 Text(name).font(.system(size: 13)).foregroundColor(.tMuted)
             } else {
-                // ✨ CORRECTION 4 : Contraint l'espace vide à 24 pixels (Au lieu de l'infini)
-                Color.clear.frame(width: 24)
+                // Empêche l'emote vide de perturber le calcul mathématique
+                Color.clear.frame(width: 24, height: 24)
             }
         }
         .frame(height: 24)
