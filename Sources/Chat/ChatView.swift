@@ -8,7 +8,6 @@ struct ChatView: View {
 
     @StateObject private var chat = ChatService()
     @State private var autoScroll = true
-    @State private var showScrollButton = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,6 +41,7 @@ struct ChatView: View {
                         }
                         .padding(.vertical, 6)
                     }
+                    // iOS 16 compat onChange
                     .onChange(of: chat.messages.first?.id) { newId in
                         guard autoScroll, let id = newId else { return }
                         withAnimation(.linear(duration: 0.1)) {
@@ -50,15 +50,11 @@ struct ChatView: View {
                     }
                 }
 
-                // Scroll to bottom button
                 if !autoScroll {
-                    Button {
-                        autoScroll = true
-                    } label: {
+                    Button { autoScroll = true } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.down")
-                            Text("Suivre le chat")
-                                .font(.system(size: 11, weight: .bold))
+                            Text("Suivre le chat").font(.system(size: 11, weight: .bold))
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 10).padding(.vertical, 6)
@@ -80,9 +76,7 @@ struct ChatView: View {
                 chat.connect(channel: channelName, token: token)
             }
         }
-        .onDisappear {
-            chat.disconnect()
-        }
+        .onDisappear { chat.disconnect() }
     }
 }
 
@@ -92,7 +86,6 @@ struct ChatMessageRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // Reply indicator
             if let reply = message.replyTo {
                 HStack(spacing: 4) {
                     Rectangle().fill(Color.tMuted).frame(width: 2)
@@ -104,18 +97,16 @@ struct ChatMessageRow: View {
                 .padding(.leading, 12)
             }
 
-            // Main message
             HStack(alignment: .top, spacing: 0) {
-                // Highlight bar
                 if message.isHighlight {
                     Rectangle().fill(Color.tWarning).frame(width: 3)
                 }
-
                 WrappingHStack(message: message)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
             }
         }
+        // ✅ FIX: frame maxWidth + alignment .leading sur le conteneur
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(message.isHighlight ? Color.tWarning.opacity(0.08) : Color.clear)
     }
@@ -129,25 +120,21 @@ struct WrappingHStack: View {
         let blocks = buildBlocks()
 
         MessageFlowLayout(spacing: 4, lineSpacing: 4) {
-            // Badges
             ForEach(message.badges) { badge in
                 AsyncImage(url: URL(string: badge.url)) { phase in
                     if let img = phase.image {
                         img.resizable().interpolation(.medium).scaledToFit()
                     } else {
-                        // Empêche le badge vide de prendre tout l'espace
                         Color.clear.frame(width: 16)
                     }
                 }
                 .frame(width: 16, height: 16)
             }
 
-            // Username
             Text(message.displayName + ":")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(message.color)
 
-            // Tokens
             ForEach(blocks) { block in
                 switch block.content {
                 case .text(let t):
@@ -163,13 +150,12 @@ struct WrappingHStack: View {
                 }
             }
         }
+        // ✅ FIX: frame maxWidth + alignment .leading sur le flow lui-même
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func buildBlocks() -> [TokenBlock] {
-        message.tokens.enumerated().map { idx, token in
-            TokenBlock(id: idx, content: token)
-        }
+        message.tokens.enumerated().map { idx, token in TokenBlock(id: idx, content: token) }
     }
 }
 
@@ -193,10 +179,14 @@ struct MessageFlowLayout: Layout {
         let layout = computeLayout(width: bounds.width, subviews: subviews)
         for (index, subview) in subviews.enumerated() {
             let point = layout.positions[index]
-            let yOffset = (layout.lineHeights[index] - subview.sizeThatFits(.unspecified).height) / 2
-            
-            // On place toujours par rapport à bounds.minX (qui est le bord gauche absolu)
-            subview.place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y + yOffset), proposal: .unspecified)
+            let subSize = subview.sizeThatFits(.unspecified)
+            // ✅ FIX: centrage vertical par ligne, ancrage à bounds.minX (gauche absolue)
+            let yOffset = (layout.lineHeights[index] - subSize.height) / 2
+            subview.place(
+                at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y + yOffset),
+                anchor: .topLeading,   // ✅ ancre .topLeading = toujours aligné à gauche
+                proposal: .unspecified
+            )
         }
     }
 
@@ -204,14 +194,14 @@ struct MessageFlowLayout: Layout {
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var maxLineHeight: CGFloat = 0
-        
+
         var positions: [CGPoint] = []
         var lineHeights: [CGFloat] = Array(repeating: 0, count: subviews.count)
         var lineStartIndex = 0
 
         for (index, subview) in subviews.enumerated() {
             let size = subview.sizeThatFits(.unspecified)
-            
+
             if currentX > 0 && currentX + size.width > width {
                 for j in lineStartIndex..<index { lineHeights[j] = maxLineHeight }
                 currentX = 0
@@ -219,17 +209,15 @@ struct MessageFlowLayout: Layout {
                 maxLineHeight = 0
                 lineStartIndex = index
             }
-            
+
             positions.append(CGPoint(x: currentX, y: currentY))
             maxLineHeight = max(maxLineHeight, size.height)
             currentX += size.width + spacing
         }
-        
+
         for j in lineStartIndex..<subviews.count { lineHeights[j] = maxLineHeight }
 
-        // ✨ LA CORRECTION MAGIQUE : 
-        // On retourne `width` au lieu de la vraie largeur du texte.
-        // La vue prendra toujours 100% de la largeur du téléphone, donc SwiftUI ne pourra JAMAIS la centrer !
+        // ✅ Retourne width complet pour que la vue occupe 100% de la largeur → pas de centrage possible
         return (CGSize(width: width, height: currentY + maxLineHeight), positions, lineHeights)
     }
 }
@@ -242,13 +230,10 @@ struct CachedEmoteImage: View {
     var body: some View {
         AsyncImage(url: URL(string: url)) { phase in
             if let img = phase.image {
-                img.resizable()
-                    .interpolation(.medium)
-                    .scaledToFit()
+                img.resizable().interpolation(.medium).scaledToFit()
             } else if phase.error != nil {
                 Text(name).font(.system(size: 13)).foregroundColor(.tMuted)
             } else {
-                // Empêche l'emote vide de perturber le calcul mathématique
                 Color.clear.frame(width: 24, height: 24)
             }
         }
